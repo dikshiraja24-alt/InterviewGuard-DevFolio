@@ -399,6 +399,9 @@ function LiveInterview({ setActivePage, setAnalysisResult }) {
   const faceMissingFramesRef = useRef(0);
   const maxVideoAnomalyRef = useRef(0);
   const maxExternalAssistanceRef = useRef(0);
+  const maxPersonCountRef = useRef(1);
+  const maxPhoneCountRef = useRef(0);
+  const interviewStartTimeRef = useRef(null);
 
   const candidateVideoRef = useRef(null);
   const cameraStreamRef = useRef(null);
@@ -541,6 +544,8 @@ function LiveInterview({ setActivePage, setAnalysisResult }) {
 
       // Session aggregations
       totalSampledFramesRef.current += 1;
+      maxPersonCountRef.current = Math.max(maxPersonCountRef.current, pCount);
+      maxPhoneCountRef.current = Math.max(maxPhoneCountRef.current, phCount);
       if (phCount > 0) phoneDetectedFramesRef.current += 1;
       if (pCount >= 2) multiplePersonFramesRef.current += 1;
       if (pCount === 0) candidateMissingFramesRef.current += 1;
@@ -638,7 +643,10 @@ function LiveInterview({ setActivePage, setAnalysisResult }) {
     setStarted(true);
 
     // Reset aggregation refs
+    interviewStartTimeRef.current = Date.now();
     totalSampledFramesRef.current = 0;
+    maxPersonCountRef.current = 1;
+    maxPhoneCountRef.current = 0;
     phoneDetectedFramesRef.current = 0;
     multiplePersonFramesRef.current = 0;
     candidateMissingFramesRef.current = 0;
@@ -714,6 +722,9 @@ function LiveInterview({ setActivePage, setAnalysisResult }) {
           video_anomaly: maxVideoAnomalyRef.current,
           external_assistance: maxExternalAssistanceRef.current,
           lip_sync_anomaly: 0,
+          analyzed_frames: totalFrames,
+          max_person_count: Math.max(1, maxPersonCountRef.current || 1),
+          max_phone_count: maxPhoneCountRef.current || 0,
         },
       };
 
@@ -726,7 +737,19 @@ function LiveInterview({ setActivePage, setAnalysisResult }) {
       if (!res.ok) throw new Error(`Server returned HTTP ${res.status}`);
       const result = await res.json();
 
-      setAnalysisResult(result);
+      const fullLiveResult = {
+        ...result,
+        video_analysis: {
+          filename: "Live Camera Session",
+          duration_seconds: Math.round((Date.now() - (interviewStartTimeRef.current || Date.now())) / 1000),
+          analyzed_frames: totalFrames,
+          max_person_count: Math.max(1, maxPersonCountRef.current || 1),
+          max_phone_count: maxPhoneCountRef.current || 0,
+          face_visible_ratio: faceVisibleRatio,
+        },
+      };
+
+      setAnalysisResult(fullLiveResult);
       setActivePage("Analysis Result");
     } catch (err) {
       console.error("Finish interview error:", err);
@@ -1692,6 +1715,14 @@ function AnalysisResult({ result, setActivePage }) {
                     face_visibility_issue: false,
                     potential_visual_anomaly: false
                   },
+                  video_analysis: {
+                    filename: "Sample_Interview_Session.webm",
+                    duration_seconds: 3,
+                    analyzed_frames: 3,
+                    max_person_count: 1,
+                    max_phone_count: 0,
+                    face_visible_ratio: 100,
+                  },
                   next_action: "Continue normal interviewer review. No major integrity signal detected.",
                   disclaimer: DISCLAIMER_TEXT
                 })
@@ -1711,7 +1742,14 @@ function AnalysisResult({ result, setActivePage }) {
   const reasons = displayData.reasons || [];
   const signals = displayData.signals || {};
   const evidence = displayData.evidence || {};
-  const videoAnalysis = displayData.video_analysis;
+  const videoAnalysis = displayData.video_analysis || (displayData.video && displayData.detection ? {
+    filename: displayData.filename || "Interview Recording",
+    duration_seconds: displayData.video?.duration_seconds ?? 0,
+    analyzed_frames: displayData.video?.analyzed_frames ?? 0,
+    max_person_count: displayData.detection?.max_person_count ?? 0,
+    max_phone_count: displayData.detection?.max_phone_count ?? 0,
+    face_visible_ratio: displayData.detection?.face_visible_ratio ?? 0,
+  } : null);
 
   // Filter actual existing evidence flags
   const evidenceItems = [];
@@ -1885,7 +1923,7 @@ function AnalysisResult({ result, setActivePage }) {
       {videoAnalysis && (
         <div className="card" style={{ padding: "20px", marginBottom: "20px" }}>
           <h4 style={{ margin: "0 0 14px 0", fontSize: "15px", color: "#f8fafc" }}>
-            Recorded Video Details
+            Video & Monitoring Details
           </h4>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "10px", fontSize: "12px" }}>
             <div style={{ padding: "8px", background: "rgba(11, 16, 32, 0.5)", borderRadius: "6px" }}>

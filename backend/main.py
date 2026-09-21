@@ -109,6 +109,10 @@ class Signals(BaseModel):
     candidate_missing: bool = False
     face_missing: bool = False
     face_visible_ratio: float = 100.0
+    analyzed_frames: int = 0
+    max_person_count: int = 1
+    max_phone_count: int = 0
+
 
 class InterviewRequest(BaseModel):
     candidate: Candidate
@@ -603,6 +607,9 @@ def evaluate_interview(
         "potential_visual_anomaly": bool(signals.video_anomaly >= 50 or signals.candidate_missing)
     }
 
+    max_persons = signals.max_person_count if signals.max_person_count > 0 else (2 if signals.multiple_persons else 1)
+    max_phones = signals.max_phone_count if signals.max_phone_count > 0 else (1 if signals.phone_detected else 0)
+
     return {
         "success": True,
         "candidate": {
@@ -623,6 +630,30 @@ def evaluate_interview(
             "observation_points": obs_pts
         },
         "evidence": evidence,
+        "video": {
+            "duration_seconds": 0,
+            "total_frames": signals.analyzed_frames,
+            "analyzed_frames": signals.analyzed_frames,
+            "sampling": "Live camera sampling"
+        },
+        "detection": {
+            "max_person_count": max_persons,
+            "max_phone_count": max_phones,
+            "multiple_person_ratio": 100 if signals.multiple_persons else 0,
+            "no_person_ratio": 100 if signals.candidate_missing else 0,
+            "face_visible_ratio": signals.face_visible_ratio,
+            "face_missing_ratio": max(0.0, 100.0 - signals.face_visible_ratio),
+            "external_assistance": signals.external_assistance,
+            "video_anomaly": signals.video_anomaly
+        },
+        "video_analysis": {
+            "filename": "Live Interview Session",
+            "duration_seconds": 0,
+            "analyzed_frames": signals.analyzed_frames,
+            "max_person_count": max_persons,
+            "max_phone_count": max_phones,
+            "face_visible_ratio": signals.face_visible_ratio,
+        },
         "next_action": next_action,
         "disclaimer": HUMAN_REVIEW_DISCLAIMER
     }
