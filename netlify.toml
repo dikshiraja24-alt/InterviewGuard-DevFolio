@@ -1,4 +1,4 @@
-﻿# Netlify root configuration
+# Netlify root configuration
 [build]
   base = "frontend"
   command = "npm run build"
