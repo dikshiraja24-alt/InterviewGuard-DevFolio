@@ -22,12 +22,13 @@ app = FastAPI(
 # =========================================================
 
 cors_origins = [
+    "https://interviewguard.netlify.app",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:5174",
     "http://127.0.0.1:5174",
     "http://localhost:3000",
-    "http://127.0.0.1:3000"
+    "http://127.0.0.1:3000",
 ]
 
 # Read optional frontend origins from environment (e.g. FRONTEND_URL or ALLOWED_ORIGINS)
@@ -49,6 +50,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # =========================================================
